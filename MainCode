@@ -1,0 +1,28 @@
+unsigned long time;
+
+void setup(){
+  
+  Serial.begin(57600);
+  
+}
+
+void loop(){
+  int s1 = analogRead(0);
+  //int s2 = analogRead(1);
+  Serial.println("***********************");
+  Serial.print("Moisture Sensor 1 Value: ");
+  Serial.println(s1); 
+  /*Serial.print("Moisture Sensor 2 Value:");
+  Serial.println(s2); 
+  Serial.print("Ave");
+  Serial.println((s1 + s2)/2); 
+  Serial.print("Moisture Sensor 1 / 2:");
+  Serial.println(s1/2); 
+  Serial.print("Moisture Sensor 1 / 2 + S2/2:");
+  Serial.println((s1/2)+(s2/2));
+  time_t t =now();*/
+  time = millis();
+  Serial.println(time);
+  delay(100);
+  
+}
