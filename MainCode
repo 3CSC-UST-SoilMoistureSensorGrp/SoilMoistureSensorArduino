@@ -1,28 +1,53 @@
-unsigned long time;
+#include <dht11.h>
+dht11 DHT;
+#define DHT11_PIN 4                                        //define the Digital Pin for the Temp and Humid Sensor
 
 void setup(){
-  
-  Serial.begin(57600);
-  
+  Serial.begin(57600);                                     //Data Rate in BPS
 }
 
-void loop(){
-  int s1 = analogRead(0);
-  //int s2 = analogRead(1);
-  Serial.println("***********************");
-  Serial.print("Moisture Sensor 1 Value: ");
-  Serial.println(s1); 
-  /*Serial.print("Moisture Sensor 2 Value:");
-  Serial.println(s2); 
+void loop(){                                               //Start of Loop; Reading
+  int soilMoistSen1 = analogRead(0);                       //Soil Moisture Sensor 1 READING
+  int soilMoistSen2 = analogRead(1);                       //Soil Moisture Sensor 2 READING
+  int tempHumidSen = DHT.read(DHT11_PIN);                  //Temp and Humid Sensor READING
+  
+  Serial.println("***********************");               //separator
+  
+  Serial.print("Soil Moisture Sensor 1 Value: ");               
+  Serial.println(soilMoistSen1);                           //Print value of SMS 1
+  Serial.print("Soil Moisture Sensor 2 Value: ");                
+  Serial.println(soilMoistSen2);                           //Print value of SMS 2
+  
+  switch (tempHumidSen){                                   //T&HS status
+    case DHTLIB_OK:  
+                Serial.println("T&HS status: OK"); 
+                break;
+    case DHTLIB_ERROR_CHECKSUM: 
+                Serial.println("T&HS status: Checksum error"); 
+                break;
+    case DHTLIB_ERROR_TIMEOUT: 
+                Serial.print("T&HS status: Time out error"); 
+                break;
+    default: 
+                Serial.println("T&HS status: Unknown error"); 
+                break;
+  }
+  Serial.print("Humidity: ");
+  Serial.println(DHT.humidity,1);                            //Print value for Humidity ; 1 = Decimal
+  Serial.print("Temperature: ");
+  Serial.println(DHT.temperature,1);                         //Print value for Temperature ; 1 = Decimal
+  
+  delay(1000);                                               //Loop delay in ms ; 1000 = 1 sec
+  
+  /*
   Serial.print("Ave");
   Serial.println((s1 + s2)/2); 
   Serial.print("Moisture Sensor 1 / 2:");
   Serial.println(s1/2); 
   Serial.print("Moisture Sensor 1 / 2 + S2/2:");
   Serial.println((s1/2)+(s2/2));
-  time_t t =now();*/
+  time_t t =now();
   time = millis();
   Serial.println(time);
-  delay(100);
-  
+  delay(100);*/
 }
