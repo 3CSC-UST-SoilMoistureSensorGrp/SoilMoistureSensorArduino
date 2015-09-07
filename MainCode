@@ -2,14 +2,62 @@
 dht11 DHT;
 #define DHT11_PIN 4                                        //define the Digital Pin for the Temp and Humid Sensor
 
+int Relay = 3;
+
+//Infiltration variables
+
+  int I;                                                     //Infiltration Rate
+  int P;                                                     //Precipitation (value is ung water input)(unit is (kg water)/(kg soil)
+  int E;                                                     //Evaporation Rate
+  int ET;                                                    //Evapotranspiration Rate
+  int SRO;                                                   //Surface Runoff Rate
+  int GWF;                                                   //Groundwater Flow Rate
+
+  // ***** Formula for Infiltration             I = P - E - ET +/- SRO +/- GWF
+
+  // ***** Equate Formula                       P = I + E + ET -/+ SRO -/+ GWF
+
+  //Soil Infiltration Rate Values:                           //Manually set depending on the type of soil
+  //  Silty - 2.09 in/hr , 4.18 ft/day , 5.31 cm/hr
+  //  Loam - 0.50 in/hr , 1.00 ft/day , 1.27 cm/hr
+  
+//Evaporation variables
+
+  int h;                                                     //elevation in meters        ????
+  int Tm;                                                    //Tl + 0.006h
+  int Tl;                                                    //mean land surface temperature in Celsius (tempHumidSen1)
+  int A;                                                     //latitude in degrees
+  int Td;                                                    //mean dew point (air) temperature in Celsius (tempHumidSen2)
+  int e;                                                     //difference of value per: day(1.7 mmday^(-1)), week(0.9), month(0.5), annual(0.3)
+
+  // ***** Formula for Evaporation (m/hr)       E = {[700Tm / (100-A) + 15(Tl-Td)] e} / (80-Tl)
+
+//Evapotranspiration          ???? dont know how to get value
+
+//Surface Runoff  - No SRO since flat surface - value = 0
+  
+  SRO = 0;
+
+//Groundwater Flow - No GWF since no excavation or any passage ng water below naman - value = 0
+  
+  GWF = 0;
+
+
+// Start
+
 void setup(){
+  pinMode(13, OUTPUT);                                     //Set Pin13 as Output
+  digitalWrite(13, HIGH);                                  //Set Pin13 High
+  pinMode(Relay, OUTPUT);                                  //Set Pin3 as Output
   Serial.begin(57600);                                     //Data Rate in BPS
 }
 
-void loop(){                                               //Start of Loop; Reading
+void loop(){
+  //Start of Loop; Reading
   int soilMoistSen1 = analogRead(0);                       //Soil Moisture Sensor 1 READING
   int soilMoistSen2 = analogRead(1);                       //Soil Moisture Sensor 2 READING
   int tempHumidSen = DHT.read(DHT11_PIN);                  //Temp and Humid Sensor READING
+  int tempHum
   
   Serial.println("***********************");               //separator
   
@@ -32,22 +80,18 @@ void loop(){                                               //Start of Loop; Read
                 Serial.println("T&HS status: Unknown error"); 
                 break;
   }
+  
   Serial.print("Humidity: ");
   Serial.println(DHT.humidity,1);                            //Print value for Humidity ; 1 = Decimal
   Serial.print("Temperature: ");
   Serial.println(DHT.temperature,1);                         //Print value for Temperature ; 1 = Decimal
   
-  delay(1000);                                               //Loop delay in ms ; 1000 = 1 sec
+  Tl = tempHumidSen;
   
-  /*
-  Serial.print("Ave");
-  Serial.println((s1 + s2)/2); 
-  Serial.print("Moisture Sensor 1 / 2:");
-  Serial.println(s1/2); 
-  Serial.print("Moisture Sensor 1 / 2 + S2/2:");
-  Serial.println((s1/2)+(s2/2));
-  time_t t =now();
-  time = millis();
-  Serial.println(time);
-  delay(100);*/
+  Tm = Tl + 0.006h;                                          //Compute for Tm  
+  E = ((700Tm / (100-A) + 15(Tl-Td)) e) / (80-Tl);           //Compute for Evaporation
+  
+  
+  
+  delay(1000);                                               //Loop delay in ms ; 1000 = 1 sec
 }
