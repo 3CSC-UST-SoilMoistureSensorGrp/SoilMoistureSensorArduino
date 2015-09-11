@@ -47,6 +47,24 @@ int Relay = 3;
   
   GWF = 0;
 
+void setupRealTimeClock(){                    //Setup RTC in setup void
+  RTC.begin();                                            //Real time clock
+  Wire.begin();
+  
+  if (! RTC.isrunning()) {
+    Serial.println("RTC is NOT running");
+  }
+  
+  DateTime now = RTC.now();                                   //Get RTC time
+  DateTime compiled = DateTime(__DATE__, __TIME__);           //Get current/real time
+  if (now.unixtime() < compiled.unixtime()) {                 //compare if RTC time is old/incorrect
+    Serial.println("RTC is older than compile time! Updating");
+    RTC.adjust(DateTime(__DATE__, __TIME__));                 //update if old
+  }
+  Serial.println("Setup complete.");
+
+}
+
 void getCurrentTime(){
   DateTime now = rtc.now();             // Read data from the RTC Chip
 
@@ -74,20 +92,7 @@ void setup(){
   pinMode(Relay, OUTPUT);                                  //Set Pin3 as Output
   Serial.begin(57600);                                     //Data Rate in BPS
   
-  RTC.begin();                                            //Real time clock
-  Wire.begin();
   
-  if (! RTC.isrunning()) {
-    Serial.println("RTC is NOT running");
-  }
-  
-  DateTime now = RTC.now();                                   //Get RTC time
-  DateTime compiled = DateTime(__DATE__, __TIME__);           //Get current/real time
-  if (now.unixtime() < compiled.unixtime()) {                 //compare if RTC time is old/incorrect
-    Serial.println("RTC is older than compile time! Updating");
-    RTC.adjust(DateTime(__DATE__, __TIME__));                 //update if old
-  }
-  Serial.println("Setup complete.");
   
 }
 
