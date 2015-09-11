@@ -1,6 +1,11 @@
 #include <dht11.h>
+#include <RTClib.h>
+#include <Wire.h>
+
 dht11 DHT;
 #define DHT11_PIN 4                                        //define the Digital Pin for the Temp and Humid Sensor
+
+RTC_DS1307 RTC;                                            //Real Time Clock
 
 int Relay = 3;
 
@@ -42,6 +47,24 @@ int Relay = 3;
   
   GWF = 0;
 
+void getCurrentTime(){
+  DateTime now = rtc.now();             // Read data from the RTC Chip
+
+  Serial.print(now.year(), DEC); //
+  Serial.print('/');
+  Serial.print(now.month(), DEC);
+  Serial.print('/');
+  Serial.print(now.day(), DEC);
+  Serial.print(' ');
+  Serial.print(now.hour(), DEC);
+  Serial.print(':');
+  Serial.print(now.minute(), DEC);
+  Serial.print(':');
+  Serial.print(now.second(), DEC);
+  Serial.println();
+  
+  delay(10000);
+}
 
 // Start
 
@@ -50,6 +73,22 @@ void setup(){
   digitalWrite(13, HIGH);                                  //Set Pin13 High
   pinMode(Relay, OUTPUT);                                  //Set Pin3 as Output
   Serial.begin(57600);                                     //Data Rate in BPS
+  
+  RTC.begin();                                            //Real time clock
+  Wire.begin();
+  
+  if (! RTC.isrunning()) {
+    Serial.println("RTC is NOT running");
+  }
+  
+  DateTime now = RTC.now();                                   //Get RTC time
+  DateTime compiled = DateTime(__DATE__, __TIME__);           //Get current/real time
+  if (now.unixtime() < compiled.unixtime()) {                 //compare if RTC time is old/incorrect
+    Serial.println("RTC is older than compile time! Updating");
+    RTC.adjust(DateTime(__DATE__, __TIME__));                 //update if old
+  }
+  Serial.println("Setup complete.");
+  
 }
 
 void loop(){
