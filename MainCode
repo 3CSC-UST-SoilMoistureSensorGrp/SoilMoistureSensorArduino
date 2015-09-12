@@ -2,10 +2,20 @@
 #include <RTClib.h>
 #include <Wire.h>
 
+/*
+  # the sensor value description
+  # 0  ~300     dry soil
+  # 300~700     humid soil
+  # 700~950     in water
+*/
+
 dht11 DHT;
 #define DHT11_PIN 4                                        //define the Digital Pin for the Temp and Humid Sensor
 
 RTC_DS1307 RTC;                                            //Real Time Clock
+
+CRIT_LEVEL = 300;
+MOIST_LEVEL = 650;
 
 int Relay = 3;
 
@@ -90,6 +100,14 @@ void timeIrrigate(int time){          //Irrigate based on time needed/given(mL/L
   digitalWrite(Relay, HIGH);   //Turn off relay
 }
 
+void checkToIrrigate(int soilMoistAve, int CRIT_LEVEL){  //check average moisture readings and then irrigate for 5 seconds
+if(soilMoistAve <= CRIT_LEVEL){
+  Serial.println("the Soil is being irrigated right now...");
+  timeIrrigate(5000);
+}
+}
+
+
 // Start
 
 void setup(){
@@ -106,6 +124,7 @@ void loop(){
   //Start of Loop; Reading
   int soilMoistSen1 = analogRead(0);                       //Soil Moisture Sensor 1 READING
   int soilMoistSen2 = analogRead(1);                       //Soil Moisture Sensor 2 READING
+  int soilMoistAve = (soilMoistSen1 + soilMoistSen2)/2;
   int tempHumidSen = DHT.read(DHT11_PIN);                  //Temp and Humid Sensor READING
   int tempHum
   
@@ -141,7 +160,7 @@ void loop(){
   Tm = Tl + 0.006h;                                          //Compute for Tm  
   E = ((700Tm / (100-A) + 15(Tl-Td)) e) / (80-Tl);           //Compute for Evaporation
   
-  
+  checkToIrrigate(soilMoistAve);
   
   delay(1000);                                               //Loop delay in ms ; 1000 = 1 sec
 }
