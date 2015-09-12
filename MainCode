@@ -84,6 +84,12 @@ void getCurrentTime(){
   delay(10000);
 }
 
+void timeIrrigate(int time){          //Irrigate based on time needed/given(mL/L per sec)
+  digitalWrite(Relay, LOW); //Turn on relay
+  delay(time);
+  digitalWrite(Relay, HIGH);   //Turn off relay
+}
+
 // Start
 
 void setup(){
