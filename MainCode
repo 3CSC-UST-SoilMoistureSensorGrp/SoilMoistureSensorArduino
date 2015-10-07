@@ -1,13 +1,18 @@
 #include <dht11.h>
-#include <RTClib.h>
 #include <Wire.h>
-
+#include <SPI.h>
+#include <SD.h>
+#include "RTClib.h"
 /*
   # the sensor value description
   # 0  ~300     dry soil
   # 300~700     humid soil
   # 700~950     in water
 */
+File myFile;                                    //Instance variable for SD CARD
+char datalog_text[75];                            //Char Variable to be inserted to text file
+RTC_DS1307 RTC;                                   //Variable for RTC
+
 
 dht11 DHT;
 #define DHT11_PIN 4                                        //define the Digital Pin for the Temp and Humid Sensor
@@ -59,24 +64,6 @@ int Relay = 3;
   GWF = 0;
 
 
-void getCurrentTime(){
-  DateTime now = rtc.now();             // Read data from the RTC Chip
-
-  Serial.print(now.year(), DEC); //
-  Serial.print('/');
-  Serial.print(now.month(), DEC);
-  Serial.print('/');
-  Serial.print(now.day(), DEC);
-  Serial.print(' ');
-  Serial.print(now.hour(), DEC);
-  Serial.print(':');
-  Serial.print(now.minute(), DEC);
-  Serial.print(':');
-  Serial.print(now.second(), DEC);
-  Serial.println();
-  
-  //delay(10000);
-}
 
 void timeIrrigate(int time){          //Irrigate based on time needed/given(mL/L per sec)
   digitalWrite(Relay, LOW); //Turn on relay
@@ -103,27 +90,87 @@ void setup(){
   RTC.begin();                                            //Real time clock
   Wire.begin();
   
+                                                            //FOR RTC SETUP
+  RTC.begin();                   
+  Wire.begin();
   if (! RTC.isrunning()) {
-    Serial.println("RTC is NOT running");
+    Serial.println("RTC NOT running");
+  }else{
+  Serial.println("RTC running");
   }
-  
-  DateTime now = RTC.now();                                   //Get RTC time
-  DateTime compiled = DateTime(__DATE__, __TIME__);           //Get current/real time
-  if (now.unixtime() < compiled.unixtime()) {                 //compare if RTC time is old/incorrect
-    Serial.println("RTC is older than compile time! Updating");
-    RTC.adjust(DateTime(__DATE__, __TIME__));                 //update if old
+  DateTime now = RTC.now();                    
+  DateTime compiled = DateTime(__DATE__, __TIME__);    
+  if (now.unixtime() < compiled.unixtime()) {       
+    Serial.println("Updating");
+    RTC.adjust(DateTime(__DATE__, __TIME__));
   }
   Serial.println("Setup complete.");
+  
+                                                                      //FOR SD CARD SETUP
+  while (!Serial) {
+    ;
+  }
+  Serial.print("Initializing SD card...");
+  if (!SD.begin(4)) {
+    Serial.println("initialization failed!");
+    return;
+  }
+  Serial.println("initialization done.");
+
+  if (SD.exists("example.txt")) {
+    Serial.println("example.txt exists.");
+  } else {
+    Serial.println("example.txt doesn't exist.");
+  }
+
+  // open a new file and immediately close it:
+  Serial.println("Creating example.txt...");
+  myFile = SD.open("example.txt", FILE_WRITE);
+
+  // Check to see if the file exists:
+  if (SD.exists("example.txt")) {
+    Serial.println("example.txt exists.");
+  } else {
+    Serial.println("example.txt doesn't exist.");
+  }
+
+  // delete the file:
+  Serial.println("Removing example.txt...");
+  //SD.remove("example.txt");
+
+  if (SD.exists("example.txt")) {
+    Serial.println("example.txt exists.");
+  } else {
+    Serial.println("example.txt doesn't exist.");
+  }
+  
+  
   
 }
 
 void loop(){
+//RTC CODE
   //Start of Loop; Reading
-  int soilMoistSen1 = analogRead(0);                       //Soil Moisture Sensor 1 READING
-  int soilMoistSen2 = analogRead(1);                       //Soil Moisture Sensor 2 READING
+  int soilMoistSen1 = analogRead(A0);                       //Soil Moisture Sensor 1 READING
+  int soilMoistSen2 = analogRead(A1);                       //Soil Moisture Sensor 2 READING
   int soilMoistAve = (soilMoistSen1 + soilMoistSen2)/2;
   int tempHumidSen = DHT.read(DHT11_PIN);                  //Temp and Humid Sensor READING
-  int tempHum
+  int tempHum;
+  
+  DateTime now = RTC.now();
+    
+    Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+      Serial.print(now.day(), DEC);
+    Serial.print(' ');
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);
+    Serial.println();
   
   Serial.println("***********************");               //separator
   
@@ -157,7 +204,24 @@ void loop(){
   Tm = Tl + 0.006h;                                          //Compute for Tm  
   E = ((700Tm / (100-A) + 15(Tl-Td)) e) / (80-Tl);           //Compute for Evaporation
   
-  checkToIrrigate(soilMoistAve);
+  //checkToIrrigate(soilMoistAve);
+  
+                                                        //WRITE OUTPUT TO TEXT FILE IN SD CARD
+    myFile = SD.open("example.txt", FILE_WRITE);
+    myFile.print(now.year(), DEC);
+    myFile.print('/');
+    myFile.print(now.month(), DEC);
+    myFile.print('/');
+    myFile.print(now.day(), DEC);
+    myFile.print(' ');
+    myFile.print(now.hour(), DEC);
+    myFile.print(':');
+    myFile.print(now.minute(), DEC);
+    myFile.print(':');
+    myFile.print(now.second(), DEC);
+    myFile.print("  Moisture Sensor Value: ");
+    myFile.println(soilMoistSen1);
+    myFile.close();
   
   delay(1000);                                               //Loop delay in ms ; 1000 = 1 sec
 }
