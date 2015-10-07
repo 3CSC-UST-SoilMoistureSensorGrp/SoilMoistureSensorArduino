@@ -1,0 +1,63 @@
+#include <SPI.h>
+#include <SD.h>
+#include <Wire.h>
+#include "RTClib.h"
+
+File myFile;
+char datalog_text[75];
+RTC_DS1307 RTC;  
+
+void setup() {
+  Serial.begin(57600);
+  
+ //FOR RTC SETUP
+  RTC.begin();                   
+  Wire.begin();
+  
+  DateTime now = RTC.now();                    
+  DateTime compiled = DateTime(__DATE__, __TIME__);    
+  if (now.unixtime() < compiled.unixtime()) {       
+    RTC.adjust(DateTime(__DATE__, __TIME__));
+  }
+
+
+//FOR SD CARD SETUP
+  while (!Serial) {
+    ;
+  }
+  if (!SD.begin(4)) {
+    return;
+  }
+
+  // open a new file and immediately close it:
+  myFile = SD.open("example.txt", FILE_WRITE);
+
+
+  // delete the file:
+  //SD.remove("example.txt");
+}
+
+void loop() {
+
+  DateTime now = RTC.now();
+    
+  int soilMoist1=analogRead(A0);
+ 
+  myFile = SD.open("example.txt", FILE_WRITE);
+  
+    myFile.print(now.year(), DEC);
+    myFile.print('/');
+    myFile.print(now.month(), DEC);
+    myFile.print('/');
+    myFile.print(now.day(), DEC);
+    myFile.print(' ');
+    myFile.print(now.hour(), DEC);
+    myFile.print(':');
+    myFile.print(now.minute(), DEC);
+    myFile.print(':');
+    myFile.print(now.second(), DEC);
+    myFile.print("    Moisture Sensor Value: ");
+    myFile.println(soilMoist1);
+    myFile.close();
+  delay(2000);
+}
