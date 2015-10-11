@@ -2,6 +2,7 @@
 #include <SD.h>
 #include <Wire.h>
 #include "RTClib.h"
+#include <math.h>
 
 File myFile;
 char datalog_text[75];
@@ -38,13 +39,14 @@ void setup() {
 }
 
 void loop() {
-
+  //CODE TO GET REAL TIME ON RTC
   DateTime now = RTC.now();
-    
-  int soilMoist1=analogRead(A0);
- 
-  myFile = SD.open("example.txt", FILE_WRITE);
   
+  //CODE TO READ SOIL MOISTURE SENSOR
+  int soilMoist1=analogRead(A3);
+  
+  //CODE TO STORE TO TEXT FILE
+  myFile = SD.open("example.txt", FILE_WRITE);
     myFile.print(now.year(), DEC);
     myFile.print('/');
     myFile.print(now.month(), DEC);
@@ -59,5 +61,7 @@ void loop() {
     myFile.print("    Moisture Sensor Value: ");
     myFile.println(soilMoist1);
     myFile.close();
+    
+    
   delay(2000);
 }
