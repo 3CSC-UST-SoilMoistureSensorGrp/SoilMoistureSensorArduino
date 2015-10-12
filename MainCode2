@@ -1,0 +1,259 @@
+#include <dht11.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
+#include "RTClib.h"
+#define DHT11_PIN 4                                       				//define the Digital Pin for the Temp and Humid Sensor
+
+File myFile;                                               				//Instance variable for SD CARD
+char datalog_text[75];                                     				//Char Variable to be inserted to text file
+RTC_DS1307 RTC;                                            				//Variable for RTC
+dht11 DHT;
+RTC_DS1307 RTC;                                            				//Real Time Clock
+
+/*
+  # the sensor value description
+  # 0  ~300     dry soil
+  # 300~700     humid soil
+  # 700~950     in water
+*/
+
+	CRIT_LEVEL = 300;                                         
+	FUZZY_LEVEL = 500;                                        	// (700+300)/2  
+	MOIST_LEVEL = 650;                                        	//or 700
+
+	int Relay = 3;
+
+	/*Infiltration variables
+		***** Formula for Infiltration             I = P - E - ET +/- SRO +/- GWF
+		***** Equate Formula                       P = I + E + ET -/+ SRO -/+ GWF
+	*/
+		int I;                                                  		//Infiltration Rate
+		int P;                                                  		//Precipitation (value is ung water input)(unit is (kg water)/(kg soil)
+		int E;                                                  		//Evaporation Rate
+		int ET;                                                 		//Evapotranspiration Rate
+		int SRO;                                                		//Surface Runoff Rate
+		int GWF;                                                		//Groundwater Flow Rate
+
+
+	/*Soil Infiltration Rate Values:                           (Manually set depending on the type of soil)
+		Silty - 2.09 in/hr , 4.18 ft/day , 5.31 cm/hr
+		Loam - 0.50 in/hr , 1.00 ft/day , 1.27 cm/hr
+	*/
+  
+	/*Evaporation variables
+		***** Formula for Evaporation (m/hr)       E = {[700Tm / (100-A) + 15(Tl-Td)] e} / (80-Tl)
+	*/
+		int h = 0.1524;                                            		//elevation in meters   (unit in meter or 0.5 feet)
+		int e = 0.00000000196759;                                  		//difference of value per: day(1.7 mmday^(-1)), week(0.9), month(0.5), annual(0.3)   (unit in m/sec)
+		int A = 14.5833;                                           		//latitude in degrees    (14 deg 35' N)
+		int Tl;                                                    		//mean land surface temperature in Celsius (tempHumidSen1)
+		int Td;                                                    		//mean dew point (air) temperature in Celsius (tempHumidSen2)
+		int Tm;                                                    		//Tl + 0.006h
+		
+	//Evapotranspiration          ???? dont know how to get value
+
+	//Surface Runoff  - No SRO since flat surface - value = 0
+  
+		SRO = 0;
+
+	//Groundwater Flow - No GWF since no excavation or any passage ng water below naman - value = 0
+  
+		GWF = 0;
+
+
+
+void timeIrrigate(int time){          									//Irrigate based on time needed/given(mL/L per sec)
+	digitalWrite(Relay, LOW); 											//Turn on relay
+	delay(time);
+	digitalWrite(Relay, HIGH);   										//Turn off relay
+}
+
+void checkToIrrigate(int soilMoist, int CRIT_LEVEL){  				//check average moisture readings and then irrigate for 5 seconds
+	if(soilMoistAve <= CRIT_LEVEL){
+		Serial.println("the Soil is being irrigated right now...");
+		timeIrrigate(5000);
+	}
+}
+
+int computeEvaporation (int x, int y, int z){							// x = Td , y = Tl , z = A
+	int Tm = y + 0.006*h;
+	int E1 = 700 * Tm;
+	int E2 = 100 - z;
+	int E3 = y - x;
+	int E4 = 15 * E3;
+	int E5 = E1 / E2;
+	int E6 = E5 + E4;
+	int E7 = E6 * e;
+	int E8 = 80 - y;
+	int Ef = E7 / E8; 
+	
+	return Ef;
+}
+
+int computeExpectedMoisture (int a, int b, int c, int d, int e){		// a = P , b = E , c = ET , d = SRO , e = GWF
+	int f = a - b - c - d - e;
+	return f;
+}
+
+// Start
+
+void setup(){
+	pinMode(13, OUTPUT);                                     			//Set Pin13 as Output
+	digitalWrite(13, HIGH);                                  			//Set Pin13 High
+	pinMode(Relay, OUTPUT);                                  			//Set Pin3 as Output
+	Serial.begin(57600);                                     			//Data Rate in BPS
+	RTC.begin();                                             			//Real time clock
+	Wire.begin();                                           
+  
+// RTC SETUP:
+	if (! RTC.isrunning()) {
+		Serial.println("RTC NOT running");
+	}else{
+		Serial.println("RTC running");
+	}
+	DateTime now = RTC.now();                    
+	DateTime compiled = DateTime(__DATE__, __TIME__);    
+	if (now.unixtime() < compiled.unixtime()) {       
+		Serial.println("Updating");
+		RTC.adjust(DateTime(__DATE__, __TIME__));
+	}
+	Serial.println("Setup complete.");
+  
+// SD CARD SETUP
+	while (!Serial) {
+		;
+	}
+	Serial.print("Initializing SD card...");
+	if (!SD.begin(4)) {
+		Serial.println("initialization failed!");
+		return;
+	}
+	Serial.println("initialization done.");
+	if (SD.exists("example.txt")) {
+		Serial.println("example.txt exists.");
+	} else {
+		Serial.println("example.txt doesn't exist.");
+	}
+
+	// open a new file and immediately close it:
+	Serial.println("Creating example.txt...");
+	myFile = SD.open("example.txt", FILE_WRITE);
+
+	// Check to see if the file exists:
+	if (SD.exists("example.txt")) {
+		Serial.println("example.txt exists.");
+	} else {
+		Serial.println("example.txt doesn't exist.");
+	}
+
+	// delete the file:
+	Serial.println("Removing example.txt...");
+	
+	//SD.remove("example.txt");
+	if (SD.exists("example.txt")) {
+		Serial.println("example.txt exists.");
+	} else {
+		Serial.println("example.txt doesn't exist.");
+	}
+}
+
+
+//START OF LOOP:
+
+void loop(){
+
+	int soilMoistSen1 = analogRead(A0);                       			//Soil Moisture Sensor 1 READING
+	int soilMoistSen2 = analogRead(A1);                       			//Soil Moisture Sensor 2 READING
+	int airTempHumidSen = DHT.read(DHT11_PIN);                			//Temp and Humid Sensor READING
+	int landTempSen;													//Infrared Temp sensor READING
+  
+//RTC CODE:
+    DateTime now = RTC.now();
+    
+    Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+    Serial.print(now.day(), DEC);
+    Serial.print(' ');
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);
+    Serial.println();
+  
+	Serial.println("***********************");               			//separator
+  
+	Serial.print("Soil Moisture Sensor 1 Value: ");               
+	Serial.println(soilMoistSen1);                           			//Print value of SMS 1
+	Serial.print("Soil Moisture Sensor 2 Value: ");                
+	Serial.println(soilMoistSen2);                           			//Print value of SMS 2
+  
+	switch (tempHumidSen){                                   				//T&HS status
+		case DHTLIB_OK:  
+			Serial.println("T&HS status: OK"); 
+            break;
+		case DHTLIB_ERROR_CHECKSUM: 
+            Serial.println("T&HS status: Checksum error"); 
+            break;
+		case DHTLIB_ERROR_TIMEOUT: 
+            Serial.print("T&HS status: Time out error"); 
+            break;
+		default: 
+            Serial.println("T&HS status: Unknown error"); 
+            break;
+	}
+  
+	Serial.print("Humidity: ");
+	Serial.println(DHT.humidity,1);                            			//Print value for Humidity ; 1 = Decimal
+	Serial.print("Temperature: ");
+	Serial.println(DHT.temperature,1);                         			//Print value for Temperature ; 1 = Decimal
+  
+	Td = airTempHumidSen;
+	Tl = landTempSen;
+	
+	E = computeEvaporation(Td, Tl, A);           						//Compute for Evaporation
+	I = computeExpectedMoisture(P, E, ET, SRO, GWF);					//Compute for Infiltration Rate
+
+	int computed = P - I;												
+	P = computed;
+	int obtained = soilMoistSen1;
+	int usedInput;
+	
+	if(math.abs(computed - obtained) < 10 || math.abs(computed - obtained >= 0)
+	{
+		usedInput = obtained;
+	}
+	else{
+		usedInput = computed;
+	}
+	
+//WRITE OUTPUT TO TEXT FILE IN SD CARD
+    myFile = SD.open("example.txt", FILE_WRITE);
+    myFile.print(now.year(), DEC);
+    myFile.print('/');
+    myFile.print(now.month(), DEC);
+    myFile.print('/');
+    myFile.print(now.day(), DEC);
+    myFile.print(' ');
+    myFile.print(now.hour(), DEC);
+    myFile.print(':');
+    myFile.print(now.minute(), DEC);
+    myFile.print(':');
+    myFile.print(now.second(), DEC);	
+    myFile.print("  Moisture Sensor Value: ");
+    myFile.println(usedInput);
+	myFile.print("  Computed Value: ");
+    myFile.println(computed);
+	myFile.print("  Obtained Value: ");
+    myFile.println(obtained);
+    myFile.close();
+	
+//checkToIrrigate(SOIL MOISTURE AVERAGE);
+
+	checkToIrrigate (usedInput, CRIT_LEVEL);
+ 
+	delay(1000);                                               //Loop delay in ms ; 1000 = 1 sec
+}
