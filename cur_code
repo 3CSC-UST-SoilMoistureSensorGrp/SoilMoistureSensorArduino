@@ -1,0 +1,51 @@
+double meanSense=0, arerror, percenterror=5;
+double prev_temp=0, cur_temp;
+int countersense=0, counterfinalsense = 10, counter = 10, ctr_final=0;
+boolean isStable=false, areStable=false;
+void setup() {
+  Serial.begin(57600);
+
+}
+
+void loop() {
+ 
+  cur_temp = analogRead(A3);
+  
+  Serial.print(F("Previous: "));                                        //PREV TEMP OUTPUT
+  Serial.println(prev_temp);
+  
+  Serial.print(F("Current: "));                                     //CURRENT TEMP OUTPUT
+  Serial.println(cur_temp);
+  
+  
+  arerror = double(((prev_temp - cur_temp)/prev_temp)*100);              //AR ERROR
+  Serial.print(F("ARError: "));
+  Serial.println(arerror);
+  
+  if(countersense <= counter){                                         //counter counter readings skip
+    Serial.println(F("Skipping..."));
+  } else { 
+    isStable = true;                                                     //pag 10 na start storing
+    Serial.println("Start Storing");
+    }
+
+    if(isStable)                                                   //after nung 10 second counter
+     if( arerror < 2.5 || arerror > -2.5){                                 //compare kung ung ARE 2.5
+
+      areStable = true; //start store 10 variables
+  }
+
+  if(areStable && ctr_final <= 9){                        //start mean 10 variables
+          Serial.println(F("Now Averaging accepting variables..."));
+    meanSense = ((meanSense*ctr_final) + cur_temp)/(ctr_final+1);           //to average
+    
+    Serial.print(F("Current Mean Temp:"));
+    Serial.println(meanSense);
+    ctr_final++;      
+    Serial.println(F("....................."));
+  }
+  
+  prev_temp=cur_temp;                     
+  delay(1000);
+  countersense++;                   //counter 10 seconds
+}
