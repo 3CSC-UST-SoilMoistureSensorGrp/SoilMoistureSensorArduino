@@ -1,0 +1,450 @@
+#include "RTClib.h"             // RTC
+#include <Wire.h>               // RTC
+#include <math.h>               // RTC
+
+RTC_DS1307 RTC;                 // RTC
+int Relay = 3;                  // RELAY
+
+/*****	GROVE INFRARED SENSOR	********/
+/************	FOR LAND TEMP AND SURROUNDING TEMP	***************************/
+#define SUR_TEMP_PIN A0 // Analog input pin connect to temperature sensor SUR pin
+#define OBJ_TEMP_PIN A1 // Analog input pin connect to temperature sensor OBJ pin
+float temp_calibration=0;       //this parameter was used to calibrate the temperature
+//float objt_calibration=0.000; //this parameter was used to calibrate the object temperature
+float temperature_range=10;    //we make a map of temperature-voltage according to sensor datasheet. 10 is the temperature step when sensor and 
+                               //object distance is 9CM.
+float offset_vol=0.014;        //this parameter was used to set the mid level voltage,when put the sensor in normal environment after 10 min,
+                               //the sensor output 0.For example,the surrounding temperature is 29℃，but the result is 27℃ via the sensor,
+                               //you should set the reerence to 0.520 or more,according to your sensor to change.
+                               //the unit is V
+float tempValue = 0; 
+float objtValue= 0;  
+float current_temp=0;		//SURROUNDING TEMP
+float object_temp=0;  		//OBJECT TEMP
+float temp=0;
+float temp1=0;
+float temp2=0;
+unsigned int temp3=0;
+const float reference_vol=0.500;
+unsigned char clear_num=0;//when use lcd to display
+float R=0;
+float desired_value=0;
+float voltage=0;
+long res[100]={
+                 318300,302903,288329,274533,261471,249100,237381,226276,215750,205768,
+                 196300,187316,178788,170691,163002,155700,148766,142183,135936,130012,
+                 124400,119038,113928,109059,104420,100000,95788,91775,87950,84305,
+                 80830,77517,74357,71342,68466,65720,63098,60595,58202,55916,
+                 53730,51645,49652,47746,45924,44180,42511,40912,39380,37910,
+                 36500,35155,33866,32631,31446,30311,29222,28177,27175,26213,
+                 25290,24403,23554,22738,21955,21202,20479,19783,19115,18472,
+                 17260,16688,16138,15608,15098,14608,14135,13680,13242,12819,
+                 12412,12020,11642,11278,10926,10587,10260,9945,9641,9347,
+                 9063,8789,8525,8270,8023,7785,7555,7333,7118,6911};
+                 
+float obj [13][12]={
+/*0*/             { 0,-0.274,-0.58,-0.922,-1.301,-1.721,-2.183,-2.691,-3.247,-3.854,-4.516,-5.236}, //
+/*1*/             { 0.271,0,-0.303,-0.642,-1.018,-1.434,-1.894,-2.398,-2.951,-3.556,-4.215,-4.931},  //→surrounding temperature,from -10,0,10,...100
+/*2*/             { 0.567,0.3,0,-0.335,-0.708,-1.121,-1.577,-2.078,-2.628,-3.229,-3.884,-4.597},   //↓object temperature,from -10,0,10,...110
+/*3*/             { 0.891,0.628,0.331,0,-0.369,-0.778,-1.23,-1.728,-2.274,-2.871,-3.523,-4.232},
+/*4*/             { 1.244,0.985,0.692,0.365,0,-0.405,-0.853,-1.347,-1.889,-2.482,-3.13,-3.835},
+/*5*/             { 1.628,1.372,1.084,0.761,0.401,0,-0.444,-0.933,-1.47,-2.059,-2.702,-3.403},
+/*6*/             { 2.043,1.792,1.509,1.191,0.835,0.439,0,-0.484,-1.017,-1.601,-2.24,-2.936},
+/*7*/             { 2.491,2.246,1.968,1.655,1.304,0.913,0.479,0,-0.528,-1.107,-1.74,-2.431},
+/*8*/             { 2.975,2.735,2.462,2.155,1.809,1.424,0.996,0.522,0,-0.573,-1.201,-1.887},
+/*9*/             { 3.495,3.261,2.994,2.692,2.353,1.974,1.552,1.084,0.568,0,-0.622,-1.301},
+/*10*/            { 4.053,3.825,3.565,3.27,2.937,2.564,2.148,1.687,1.177,0.616,0,-0.673},
+/*11*/            { 4.651,4.43,4.177,3.888,3.562,3.196,2.787,2.332,1.829,1.275,0.666,0},
+/*12*/            { 5.29,5.076,4.83,4.549,4.231,3.872,3.47,3.023,2.527,1.98,1.379,0.72}
+};
+/****************************************************************************************/
+/****************************************************************************************/
+float precip_used=0;														// set as the correct precipitate
+float precip_computed=0;
+float crit_value_precip = 500; 
+float arError_precip=0;
+float infiltration_rate_silt=0;
+float computed_precipitate=0;
+float transpiration=0, surface_runoff=0, groundwater_flow=0;
+float voltsToMetric;														// Metric equivalent for 1 ADC (mm/m)
+//float initSensorOutputArray[5];												// Array for the sensor outputs: will be averaged to obtain Initial Moisture value (still in ADC)
+//float sensorOutputArrayFlag = 0;											// Count the number of outputs in the array : First 10 outputs only
+float P;																	// Precipitation	
+float cur_sense,prev_sense=0, arError, sense_sum;
+float init_precipitate=0, evap_rate=0, evap_value=0, infil_rate=0;
+float init_evap_rate=0, init_evap_value=0, init_infil_rate=0;
+boolean flag=false, flag_normalize=false;
+
+
+void setup() {
+	Serial.begin(57600);
+   
+	// RTC SETUP
+		RTC.begin();                   
+		Wire.begin();
+		DateTime now = RTC.now();                    
+		DateTime compiled = DateTime(__DATE__, __TIME__);    
+		if (now.unixtime() < compiled.unixtime()) {       
+			RTC.adjust(DateTime(__DATE__, __TIME__));
+		}
+    
+	// RELAY SETUP
+		pinMode(13, OUTPUT);         //Set Pin13 as output
+		digitalWrite(13, HIGH);     //Set Pin13 High
+		pinMode(Relay, OUTPUT);     //Set Pin3 as output
+    
+	// SD CARD SETUP
+		while (!Serial) {;
+		}
+		Serial.print("Initializing SD card...");
+		if (!SD.begin(4)) {
+			Serial.println("initialization failed!");
+			return;
+		}
+		Serial.println("initialization done.");
+		if (SD.exists("example.txt")) {
+			Serial.println("example.txt exists.");
+		} else {
+			Serial.println("example.txt doesn't exist.");
+		}
+
+		// open a new file and immediately close it:
+			Serial.println("Creating example.txt...");
+			myFile = SD.open("example.txt", FILE_WRITE);
+
+		// Check to see if the file exists:
+			if (SD.exists("example.txt")) {
+				Serial.println("example.txt exists.");
+			} else {
+				Serial.println("example.txt doesn't exist.");
+			}
+
+		// delete the file:
+			Serial.println("Removing example.txt...");
+		
+		//SD.remove("example.txt");
+			if (SD.exists("example.txt")) {
+				Serial.println("example.txt exists.");
+			} else {
+				Serial.println("example.txt doesn't exist.");
+			}
+}
+
+void loop() {
+  
+	// RTC
+		DateTime now = RTC.now();                                            //CODE TO GET REAL TIME ON RTC
+		Serial.print(now.year(), DEC);
+		Serial.print('/');
+		Serial.print(now.month(), DEC);
+		Serial.print('/');
+		Serial.print(now.day(), DEC);
+		Serial.print(' ');
+		Serial.print(now.hour(), DEC);
+		Serial.print(':');
+		Serial.print(now.minute(), DEC);
+		Serial.print(':');
+		Serial.print(now.second(), DEC);
+		Serial.println();
+    
+	
+	//Normalize_sense
+	if(flag_normalize)
+	normalize_sense();
+		
+		
+		
+		
+	// Air and Land Temp SENSOR
+		computeTempLoop();                                                  //****************************??????
+
+	// CHECK TO IRRIGATE OR NOT
+		checkToIrrigate();
+  
+	/* WRITE OUTPUTS TO TEXT FILE IN SD CARD
+		myFile = SD.open("example.txt", FILE_WRITE);
+		myFile.print(now.year(), DEC);
+		Serial.print(now.year(), DEC);
+		myFile.print('/');
+		Serial.print('/');
+		myFile.print(now.month(), DEC);
+		Serial.print(now.month(), DEC);
+		myFile.print('/');
+		Serial.print('/');
+		myFile.print(now.day(), DEC);
+		Serial.print(now.day(), DEC);
+		myFile.print(' ');
+		Serial.print(' ');
+		myFile.print(now.hour(), DEC);
+		Serial.print(now.hour(), DEC);
+		myFile.print(':');
+		Serial.print(':');
+		myFile.print(now.minute(), DEC);
+		Serial.print(now.minute(), DEC);
+		myFile.print(':');
+		Serial.print(':');
+		myFile.print(now.second(), DEC);
+		Serial.print(now.second(), DEC);	
+		myFile.print("  Moisture Sensor Value: ");
+		myFile.println(usedInput);
+		myFile.print("  Computed Value: ");
+		myFile.println(computed);
+		myFile.print("  Obtained Value: ");
+		myFile.println(obtained);
+		myFile.close();
+	*/	
+		
+		delay(1000);													//Loop delay in ms ; 1000 = 1 sec
+}
+
+void soilMoistureSensorLoop(){
+	
+}
+
+void computeTempLoop(float landTemp, float airTemp){
+	
+}
+
+/***************************************************************
+float inputInitMoisturetoArray(float sensorReading){												//compute initial moisture using first 5 sensor readings(ave)
+	initSensorOutputArray[sensorOutputArrayFlag] = sensorReading;
+	sensorOutputArrayFlag++;
+}
+*****************************************************************/
+
+float computeInitMoisture(){
+	float outputSum = 0;
+	for(x=0;x<=sensorOutputArrayFlag;x++){
+		outputSum = outputSum + initSensorOutputArray[x];
+	}
+	float outputNum = sensorOutputArrayFlag + 1;
+	float outputAve = outputSum / outputNum;
+	return outputAve;
+}
+
+void computeInfilRate(){
+
+}
+
+void checkToIrrigate(int CRIT_LEVEL, int MOISTURE_LEVEL){
+	/*
+	*/
+}
+
+void compute_evap(){
+
+	measureSurTemp();//measure the Surrounding temperature around the sensor
+	measureObjectTemp(); //measure the land temperature
+	//current_temp final_temp
+	init_evap_rate = (((700*final_temp)/100) + (15(final_temp - current_temp))) / (80 - final_temp);
+	
+	//Serial.print(F("Evaporation is : "));
+	//Serial.println(init_evap_rate);
+	//run pump
+	//next precipitate
+	//if irrigation time = false , IR = false - > use initial infiltration given//
+	//irrigation time = false , IR = true -> get obtained temp  from sensor
+	//evaporation rate & infiltration formula to get infiltration rate
+	//precipitate = value/time
+	
+	//
+	
+	
+	
+	
+}
+void compute_next_precip(){
+	
+	//compute for next precipitate value				************************
+	
+	arError_precip = (precip_computed - init_precipitate);
+	arError_precip /= precip_computed;
+	arError *= 100;
+	
+	
+	if(arError_precip > 2.5 || arError < -2.5){
+			Serial.println(F("Computed is used"));
+			precip_used = precip_computed;
+			
+	}else{
+		Serial.println(F("Soil moisture sensor is used"));
+		precip_used = init_precipitate;
+	}
+	
+	crit_value_precip /= 35;
+	crit_value_precip *=15.64711387;
+	
+	
+	if(precip_used >= crit_value_precip){
+		irrigate_soil();
+	}
+	if(irr)
+	
+}
+void irrigate_soil(){
+	//compute value & time to irrigate
+	//then set new precipitate value
+	//set new irrigation time
+}
+
+
+void compute_infil(float precip, float evap_value){
+
+	infil_rate = precip - evap_value - transpiration + surface_runoff + groundwater_flow;
+	
+	
+
+}
+
+void normalize_sense(){
+
+	delay(10000);
+
+	do{
+		Serial.print(F("Soil Moisture Sensor Value: "));
+		cur_sense = analogRead(A3);
+		Serial.println(cur_sense);
+		
+		arError =(((prev_sense - cur_sense)/prev_sense)*100);
+		Serial.print(arError);
+		
+		
+		
+		delay(1000);
+	}while(arError < 2.5 && arError > -2.5);
+	
+	Serial.println(F("Now normalized accepting values"));
+	
+	for(int i=0;i<60;i++){
+	sense_sum += analogRead(A3);
+	delay(1000);
+	}
+	sense_sum /= 60;
+	
+	Serial.print(F("Initial Moisture: "));
+	Serial.println(sense_sum);
+	
+	//init_precipitate = ((sense_sum / 112)*125.176911);//1.117650991						// **********************************
+	
+	init_precipitate = ((sense_sum / 35)*15.64711387);//1.117650991
+	
+	//  /35 * 15.64711387				//mm^3 / cm^3
+			//500
+	//11;38;15 - 12;08;00 - 12;08;15 - 12;38;15
+	flag_normalize = true;
+}
+
+
+
+void irrigateunknown(){
+	//next precipitate value
+	//given infiltration
+	
+	
+	
+}
+
+
+void timeToIrrigate(int time){
+  digitalWrite(Relay, LOW);    //Turn on relay
+  delay(time);
+  digitalWrite(Relay, HIGH);   //Turn off relay
+}
+
+/*************************	GROVE INFRARED SENSOR FUNCTIONS	*********************************/
+/*************************	FOR LAND TEMP AND SURROUNDING TEMP	******************************************************/
+float binSearch(long x)// this function used for measure the surrounding temperature
+{
+	int low,mid,high;
+	low=0;
+	//mid=0;
+	high=100;
+	while (low<=high)
+	{
+		mid=(low+high)/2;
+		if(x<res[mid])
+			low= mid+1;
+		else//(x>res[mid])
+			high=mid-1;
+	}
+	return mid;
+}
+
+float arraysearch(float x,float y)//x is the surrounding temperature,y is the object temperature
+{
+	int i=0;
+	float tem_coefficient=100;//Magnification of 100 times	
+	i=(x/10)+1;//Ambient temperature			
+	voltage=(float)y/tem_coefficient;//the original voltage		
+	//Serial.print("sensor voltage:\t");		
+	//Serial.print(voltage,5);	
+	//Serial.print("V");			
+	for(temp3=0;temp3<13;temp3++)		
+	{			
+		if((voltage>obj[temp3][i])&&(voltage<obj[temp3+1][i]))				
+		{			
+			return temp3;					
+		}			
+	}
+}
+float measureSurTemp()
+{  
+	unsigned char i=0;
+	float current_temp1=0;	  
+	int signal=0;	  
+	tempValue=0;
+
+	for(i=0;i<10;i++)       //	  
+	{		  
+		tempValue+= analogRead(SUR_TEMP_PIN); 		  
+		delay(10); 	  
+	}	  
+	tempValue=tempValue/10;	  
+	temp = tempValue*1.1/1023;	  
+	R=2000000*temp/(2.50-temp);	  
+	signal=binSearch(R);	  
+	current_temp=signal-1+temp_calibration+(res[signal-1]-R)/(res[signal-1]-res[signal]);
+//	Serial.print("Surrounding temperature:");
+//	Serial.print(current_temp);
+//	return current_temp;
+}
+
+float measureObjectTemp()
+{
+	unsigned char i=0;  
+	unsigned char j=0;  
+	float sur_temp=0;  
+	unsigned int array_temp=0;  
+	float temp1,temp2; 
+	float final_temp=0;
+	objtValue=0;	
+	for(i=0;i<10;i++)
+	{
+		objtValue+= analogRead(OBJ_TEMP_PIN); 
+		delay(10); 
+    }       
+	objtValue=objtValue/10;//Averaging processing     
+	temp1=objtValue*1.1/1023;//+objt_calibration; 
+	sur_temp=temp1-(reference_vol+offset_vol);             
+	Serial.print("\t Sensor voltage:");		
+	Serial.print(sur_temp,3);	
+	Serial.print("V");	
+	array_temp=arraysearch(current_temp,sur_temp*1000);        
+	temp2=current_temp;        
+	temp1=(temperature_range*voltage)/(obj[array_temp+1][(int)(temp2/10)+1]-obj[array_temp][(int)(temp2/10)+1]);        
+	final_temp=temp2+temp1;        
+	if((final_temp>100)||(final_temp<=-10))
+		{
+	//	Serial.println ("\t out of range!");
+		}
+	else
+		{	
+			Serial.println(final_temp,2); 
+			}
+			object_temp = final_temp;
+}
+/**********************************************************************************/
+/**********************************************************************************/
+
+
+
