@@ -73,7 +73,7 @@ float P;																	// Precipitation
 float cur_sense,prev_sense=0, arError, sense_sum;
 float init_precipitate=0, evap_rate=0, evap_value=0, infil_rate=0;
 float init_evap_rate=0, init_evap_value=0, init_infil_rate=0;
-boolean flag=false, flag_normalize=false;
+boolean flag=false, flag_normalize=false, flag_irrigated=false;
 
 
 void setup() {
@@ -285,6 +285,7 @@ void irrigate_soil(){
 	//compute value & time to irrigate
 	//then set new precipitate value
 	//set new irrigation time
+	flag_irrigated=true;
 }
 
 
